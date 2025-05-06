@@ -17,25 +17,26 @@ export class OrdersService {
   ) {}
 
   async createOrderFromCart(buyerId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const [user, cartItems] = await Promise.all([
-        tx.user.findUnique({
-          where: { id: buyerId },
-          select: { email: true },
-        }),
-        tx.cartItem.findMany({
-          where: { buyerId },
-          include: { product: true },
-        }),
-      ]);
+    const [user, cartItems] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: buyerId },
+        select: { email: true },
+      }),
+      this.prisma.cartItem.findMany({
+        where: { buyerId },
+        include: { product: true },
+      }),
+    ]);
 
-      if (!user) throw new NotFoundException('User not found');
-      if (cartItems.length === 0) throw new Error('Cart is empty');
-      if (!user.email) throw new Error('User email not found');
+    if (!user) throw new NotFoundException('User not found');
+    if (cartItems.length === 0) throw new Error('Cart is empty');
+    if (!user.email) throw new Error('User email not found');
 
-      const tx_ref = generateTxRef();
+    const tx_ref = generateTxRef();
 
-      const order = await tx.order.create({
+    // Step 1: Create the order inside a transaction
+    const order = await this.prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
         data: {
           buyerId,
           tx_ref,
@@ -64,38 +65,35 @@ export class OrdersService {
         ),
       );
 
-      try {
-        const payment = await this.chapaService.initiatePayment({
-          amount: order.totalAmount,
-          email: user.email,
-          orderId: order.id.toString(),
-        });
+      await tx.cartItem.deleteMany({ where: { buyerId } });
 
-        if (!payment?.checkout_url) {
-          throw new Error(
-            'Payment initialization failed, missing checkout_url',
-          );
-        }
-
-        await tx.order.update({
-          where: { id: order.id },
-          data: {
-            paymentUrl: payment.checkout_url,
-            currency: 'ETB',
-          },
-        });
-
-        await tx.cartItem.deleteMany({ where: { buyerId } });
-
-        return {
-          orderId: order.id,
-          paymentUrl: payment.checkout_url,
-        };
-      } catch (error) {
-        console.error('Payment initialization error:', error);
-        throw new Error('Payment initialization failed');
-      }
+      return createdOrder;
     });
+
+    // Step 2: Initiate payment outside transaction
+    const payment = await this.chapaService.initiatePayment({
+      amount: order.totalAmount,
+      email: user.email,
+      orderId: order.id.toString(),
+    });
+
+    if (!payment?.checkout_url) {
+      throw new Error('Payment initialization failed, missing checkout_url');
+    }
+
+    // Step 3: Update order with payment URL
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        paymentUrl: payment.checkout_url,
+        currency: 'ETB',
+      },
+    });
+
+    return {
+      orderId: order.id,
+      paymentUrl: payment.checkout_url,
+    };
   }
 
   async updateOrderStatus(orderId: string, status: OrderStatus) {
