@@ -1,0 +1,194 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+
+enum UserType {
+  MERCHANT
+  USER
+  ADMIN
+}
+
+
+
+model User {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  fullName    String
+  email       String   @unique
+  password    String
+  phoneNumber String?
+  address     String?
+  profilePic  String?
+    otp         String?     
+  otpExpires  DateTime?   
+  userType    UserType @default(USER)
+  userStatus  UserStatus
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt  
+
+  product Product[]
+  order Order[]
+  cartItem CartItem[] 
+  // services    Service[]
+}
+
+
+
+
+
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  DEACTIVATED
+}
+
+
+enum ListingType {
+  ECOMMERCE   // Products sold directly online
+  BROKERAGE   // Products listed for sale or rental, negotiated via chat
+  SERVICE     // Services offered by merchants
+}
+
+enum BrokerageType {
+  SALE
+  RENT
+}
+
+
+
+model Category {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  name          String         @unique
+  subcategories SubCategory[] @relation("RootCategorySubcategories")
+  attributes    Json?
+  imageUrl      String?
+  description   String?
+}
+
+
+model SubCategory {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  attributes  Json?
+  categoryId  String
+  category    Category       @relation("RootCategorySubcategories", fields: [categoryId], references: [id], onDelete: Cascade)
+  parentId    String?        
+  parent      SubCategory?   @relation("SubcategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    SubCategory[]  @relation("SubcategoryHierarchy")  
+  products    Product[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+
+
+// model SubSubCategory {
+//   id           String   @id @default(auto()) @map("_id") @db.ObjectId
+//   name         String
+//   subCategoryId String? @db.ObjectId
+//   subCategory  SubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
+//   attributes   Json?
+//   products     Product[]
+// }
+
+
+
+
+model Product {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  price          Float
+  description    String?
+  imageUrls       String[]
+  quantity       Int @default(1)
+  listingType    ListingType
+  brokerageType  BrokerageType?
+  attributes     Json
+
+  subcategoryId  String       @db.ObjectId
+  // subSubcategoryId String
+  subcategory    SubCategory  @relation(fields: [subcategoryId], references: [id], onDelete: NoAction) // ✅ Fixed cyclic dependency
+  // subSubcategory  SubSubCategory @relation(fields: [subSubcategoryId], references: [id], onDelete: Cascade)
+  userId         String       @db.ObjectId
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  cartItem       CartItem[]
+    orderItem OrderItem[]
+}
+model CartItem {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  buyerId   String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id])
+  buyer     User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@unique([buyerId, productId]) // Enforcing unique cart item per user and product
+}
+
+
+
+
+
+
+model Order {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  buyerId      String      @db.ObjectId
+  items        OrderItem[]
+  totalAmount  Float
+    tx_ref   String? 
+  status       OrderStatus @default(PENDING)
+  paymentId    String?    
+  paymentUrl   String?    
+   currency        String        @default("ETB")
+  createdAt    DateTime    @default(now())
+  
+  buyer        User        @relation(fields: [buyerId], references: [id])
+}
+
+model OrderItem {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId     String   @db.ObjectId
+  productId   String   @db.ObjectId
+  quantity    Int
+  priceAtOrder Float  
+  
+  order       Order    @relation(fields: [orderId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
