@@ -14,11 +14,13 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('categories')
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly service: CategoriesService) {}
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
   @Roles('ADMIN')
@@ -36,6 +38,7 @@ export class CategoriesController {
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
   }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':id')
   @Roles('ADMIN')
@@ -43,10 +46,11 @@ export class CategoriesController {
   update(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.service.update(id, dto);
   }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @ApiBearerAuth()
   @Delete(':id')
   @Roles('ADMIN')
+  @ApiBearerAuth()
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

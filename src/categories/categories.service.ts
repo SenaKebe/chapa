@@ -33,7 +33,25 @@ export class CategoriesService {
 
   async findAll() {
     const categories = await this.prisma.category.findMany({
-      include: { subcategories: true },
+      include: {
+        subcategories: {
+          include: {
+            children: {
+              include: {
+                children: {
+                  include: {
+                    children: {
+                      include: {
+                        children: true, // 🔁 depth 5 — expand more if needed
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     return categories.map((category) => ({
@@ -43,10 +61,44 @@ export class CategoriesService {
   }
 
   async findOne(id: string) {
-    return this.prisma.category.findUnique({
+    const category = await this.prisma.category.findUnique({
       where: { id },
-      include: { subcategories: true },
     });
+
+    if (!category) return null;
+
+    const subcategories = await this.prisma.subCategory.findMany({
+      where: {
+        categoryId: id,
+        parentId: null,
+      },
+    });
+
+    return {
+      ...category,
+      attributes: category.attributes ?? {},
+      subcategories: await Promise.all(
+        subcategories.map(async (sub) => ({
+          ...sub,
+          attributes: sub.attributes ?? {},
+          subcategories: await this.buildSubcategoryTree(sub.id),
+        })),
+      ),
+    };
+  }
+
+  private async buildSubcategoryTree(parentId: string): Promise<any[]> {
+    const children = await this.prisma.subCategory.findMany({
+      where: { parentId },
+    });
+
+    return Promise.all(
+      children.map(async (child) => ({
+        ...child,
+        attributes: child.attributes ?? {},
+        subcategories: await this.buildSubcategoryTree(child.id),
+      })),
+    );
   }
 
   async update(id: string, data: UpdateCategoryDto) {
