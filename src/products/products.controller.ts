@@ -205,4 +205,9 @@ export class ProductsController {
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);
   }
+
+  @Get('/by-leaf-subcategory/:subcategoryId')
+  getByLeafSubcategory(@Param('subcategoryId') id: string) {
+    return this.productsService.getProductsByLastChildSubcategory(id);
+  }
 }

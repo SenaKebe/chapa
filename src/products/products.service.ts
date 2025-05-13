@@ -344,4 +344,82 @@ export class ProductsService {
 
     return products;
   }
+
+  // Inside the ProductsService class
+  async findLeafSubcategoryIds(subcategoryId: string): Promise<string[]> {
+    const subcategory = await this.prisma.subCategory.findUnique({
+      where: { id: subcategoryId },
+      include: { children: true },
+    });
+
+    if (!subcategory) return [];
+
+    if (subcategory.children.length === 0) {
+      return [subcategory.id]; // Leaf node
+    }
+
+    const leafIds: string[] = [];
+
+    for (const child of subcategory.children) {
+      const childLeafIds = await this.findLeafSubcategoryIds(child.id);
+      leafIds.push(...childLeafIds);
+    }
+
+    return leafIds;
+  }
+
+  async getProductsByLastChildSubcategory(subcategoryId: string) {
+    if (!ObjectId.isValid(subcategoryId)) {
+      throw new BadRequestException('Invalid subcategoryId format');
+    }
+
+    const subcategory = await this.prisma.subCategory.findUnique({
+      where: { id: subcategoryId },
+    });
+
+    if (!subcategory) {
+      throw new NotFoundException('Subcategory not found');
+    }
+
+    const leafIds = await this.findLeafSubcategoryIds(subcategoryId);
+
+    if (leafIds.length === 0) {
+      return [];
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        subcategoryId: { in: leafIds },
+      },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        description: true,
+        imageUrls: true,
+        listingType: true,
+        brokerageType: true,
+        attributes: true,
+        subcategoryId: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        subcategory: {
+          select: {
+            id: true,
+            name: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+                attributes: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return products;
+  }
 }
