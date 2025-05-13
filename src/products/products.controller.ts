@@ -51,7 +51,7 @@ export class ProductsController {
       properties: {
         name: { type: 'string', example: 'iPhone 15' },
         price: { type: 'number', example: 1200 },
-        quantity: { type: 'number' },
+        quantity: { type: 'number', example: 10 },
         listingType: {
           type: 'string',
           enum: ['ECOMMERCE', 'BROKERAGE', 'SERVICE'],
@@ -60,8 +60,12 @@ export class ProductsController {
         subCategoryId: { type: 'string' },
         description: { type: 'string', example: 'A premium Apple smartphone' },
         attributes: {
-          type: 'object',
-          example: { color: 'black', storage: '128GB' },
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: { type: 'string' },
+          },
+          example: [{ color: 'black' }, { storage: '128GB' }],
         },
         images: {
           type: 'array',

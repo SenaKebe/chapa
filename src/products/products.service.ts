@@ -38,14 +38,19 @@ export class ProductsService {
       throw new BadRequestException('Subcategory not found');
     }
 
-    let attributes = {};
+    let attributes: Array<Record<string, any>> = [];
+
     try {
       attributes =
         data.attributes && typeof data.attributes === 'string'
           ? JSON.parse(data.attributes)
-          : (data.attributes ?? {});
+          : (data.attributes ?? []);
     } catch (err) {
       throw new BadRequestException('Invalid attributes format (must be JSON)');
+    }
+
+    if (!Array.isArray(attributes)) {
+      throw new BadRequestException('Attributes must be an array');
     }
 
     console.log('Parsed attributes:', attributes);
